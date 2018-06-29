@@ -4,29 +4,22 @@ import ActionTypes from './utils/actionTypes'
 import isPlainObject from './utils/isPlainObject'
 
 /**
- * Creates a Redux store that holds the state tree.
- * The only way to change the data in the store is to call `dispatch()` on it.
+ * 创建 Redux 的 store 存储器，将状态（state）树存储在内存中.
+ * `dispatch()` 方法是唯一可以修改状态（state）树的方法.
  *
- * There should only be a single store in your app. To specify how different
- * parts of the state tree respond to actions, you may combine several reducers
- * into a single reducer function by using `combineReducers`.
+ * 建议应用中只有一个store
+ * 可以使用 combineReducers 将 reducer 组合成一个 reducer 函数.
  *
- * @param {Function} reducer A function that returns the next state tree, given
- * the current state tree and the action to handle.
+ * @param {Function} reducer 在`dispatch`方法调用获取下一个状态（state）树
  *
- * @param {any} [preloadedState] The initial state. You may optionally specify it
- * to hydrate the state from the server in universal apps, or to restore a
- * previously serialized user session.
- * If you use `combineReducers` to produce the root reducer function, this must be
- * an object with the same shape as `combineReducers` keys.
+ * @param {any} [preloadedState] 初始化状态（state）树
+ * 如使用 `combineReducers` 管理reducer，
+ * 则初始状态（state）树应与combineReducers的键值对匹配
  *
- * @param {Function} [enhancer] The store enhancer. You may optionally specify it
- * to enhance the store with third-party capabilities such as middleware,
- * time travel, persistence, etc. The only store enhancer that ships with Redux
- * is `applyMiddleware()`.
+ * @param {Function} [enhancer] store增强器. 你可以使用该增强器实现一些中间件，Redux提供的增强器有 applyMiddleware
  *
- * @returns {Store} A Redux store that lets you read the state, dispatch actions
- * and subscribe to changes.
+ * @returns {Store} 返回 Redux 的 store 对象, 可以使用 getState 获取 状态（state）树，使用 dispatch 方法执行 actions 修改 状态（state）树；
+ * 还可以使用 subscribe 方法监听状态（state）树变动
  */
 export default function createStore(reducer, preloadedState, enhancer) {
   if (typeof preloadedState === 'function' && typeof enhancer === 'undefined') {
@@ -36,21 +29,21 @@ export default function createStore(reducer, preloadedState, enhancer) {
 
   if (typeof enhancer !== 'undefined') {
     if (typeof enhancer !== 'function') {
-      throw new Error('Expected the enhancer to be a function.')
+      throw new Error('您传的增强器不是函数')
     }
 
     return enhancer(createStore)(reducer, preloadedState)
   }
 
   if (typeof reducer !== 'function') {
-    throw new Error('Expected the reducer to be a function.')
+    throw new Error('您传的reducer不是函数')
   }
 
-  let currentReducer = reducer
-  let currentState = preloadedState
-  let currentListeners = []
-  let nextListeners = currentListeners
-  let isDispatching = false
+  let currentReducer = reducer; // 当前reducer缓存器（执行action修改状态（state）树动作的函数）
+  let currentState = preloadedState; // 当前状态（state）树缓存器
+  let currentListeners = []; // 当前监听函数缓存器
+  let nextListeners = currentListeners; // 下一步监听函数缓存器
+  let isDispatching = false; // 是否是在执行reducer中
 
   function ensureCanMutateNextListeners() {
     if (nextListeners === currentListeners) {
@@ -59,16 +52,16 @@ export default function createStore(reducer, preloadedState, enhancer) {
   }
 
   /**
-   * Reads the state tree managed by the store.
+   * 读取当前的状态（state）树
    *
-   * @returns {any} The current state tree of your application.
+   * @returns {any} 当前的状态（state）树
    */
   function getState() {
-    if (isDispatching) {
+    if (isDispatching) { //运行reducer方法时已经传入状态（state）树，避免使用store.getState方法调用
       throw new Error(
-        'You may not call store.getState() while the reducer is executing. ' +
-          'The reducer has already received the state as an argument. ' +
-          'Pass it down from the top reducer instead of reading it from the store.'
+        '执行 reducer 时不能调用 `getState` 方法，' +
+          'state 已经注入到 reducer 中' +
+          '请从 reducer 中读取，而不是 store.'
       )
     }
 
@@ -100,12 +93,12 @@ export default function createStore(reducer, preloadedState, enhancer) {
    */
   function subscribe(listener) {
     if (typeof listener !== 'function') {
-      throw new Error('Expected the listener to be a function.')
+      throw new Error('您传的监听器不是函数')
     }
 
     if (isDispatching) {
       throw new Error(
-        'You may not call store.subscribe() while the reducer is executing. ' +
+        '在执行 reducer 期间，不能添加监听器 ' +
           'If you would like to be notified after the store has been updated, subscribe from a ' +
           'component and invoke store.getState() in the callback to access the latest state. ' +
           'See https://redux.js.org/api-reference/store#subscribe(listener) for more details.'
@@ -124,8 +117,7 @@ export default function createStore(reducer, preloadedState, enhancer) {
 
       if (isDispatching) {
         throw new Error(
-          'You may not unsubscribe from a store listener while the reducer is executing. ' +
-            'See https://redux.js.org/api-reference/store#subscribe(listener) for more details.'
+          '在 执行 reducer 期间，不能删除 listener（监听器）； '
         )
       }
 
@@ -138,12 +130,11 @@ export default function createStore(reducer, preloadedState, enhancer) {
   }
 
   /**
-   * Dispatches an action. It is the only way to trigger a state change.
+   * 执行action操作；这是改变状态（state）树的唯一途径.
    *
-   * The `reducer` function, used to create the store, will be called with the
-   * current state tree and the given `action`. Its return value will
-   * be considered the **next** state of the tree, and the change listeners
-   * will be notified.
+   * 调用 `reducer` 方法，传入 当前状态（state）树 和 action，
+   * `reducer` 方法返回的值作为下一个状态（state）树；
+   * 并循环listeners执行监听器通知
    *
    * The base implementation only supports plain object actions. If you want to
    * dispatch a Promise, an Observable, a thunk, or something else, you need to
@@ -165,20 +156,19 @@ export default function createStore(reducer, preloadedState, enhancer) {
   function dispatch(action) {
     if (!isPlainObject(action)) {
       throw new Error(
-        'Actions must be plain objects. ' +
-          'Use custom middleware for async actions.'
+        'Action 必须是普通的 Object 对象； ' +
+          '可以使用自定义的中间件实现异步 Action 操作.'
       )
     }
 
     if (typeof action.type === 'undefined') {
       throw new Error(
-        'Actions may not have an undefined "type" property. ' +
-          'Have you misspelled a constant?'
+        'Action必须有type熟悉. '
       )
     }
 
     if (isDispatching) {
-      throw new Error('Reducers may not dispatch actions.')
+      throw new Error('不能同时执行多个 Action.')
     }
 
     try {
@@ -194,11 +184,11 @@ export default function createStore(reducer, preloadedState, enhancer) {
       listener()
     }
 
-    return action
+    return action; // 返回action为了实现多个中间件组合运行
   }
 
   /**
-   * Replaces the reducer currently used by the store to calculate the state.
+   * reducer替换器
    *
    * You might need this if your app implements code splitting and you want to
    * load some of the reducers dynamically. You might also need this if you
@@ -209,7 +199,7 @@ export default function createStore(reducer, preloadedState, enhancer) {
    */
   function replaceReducer(nextReducer) {
     if (typeof nextReducer !== 'function') {
-      throw new Error('Expected the nextReducer to be a function.')
+      throw new Error('新的Reducer不是函数')
     }
 
     currentReducer = nextReducer
