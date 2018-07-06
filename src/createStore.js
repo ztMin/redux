@@ -45,9 +45,12 @@ export default function createStore(reducer, preloadedState, enhancer) {
   let nextListeners = currentListeners; // 下一步监听函数缓存器
   let isDispatching = false; // 是否是在执行reducer中
 
+  /**
+   * 确保可以改变下次监听器队列时不影响当前监听器队列
+  */
   function ensureCanMutateNextListeners() {
     if (nextListeners === currentListeners) {
-      nextListeners = currentListeners.slice()
+      nextListeners = currentListeners.slice(); // 将当前监听器队列拷贝一份作为下次的监听器队列
     }
   }
 
@@ -69,27 +72,22 @@ export default function createStore(reducer, preloadedState, enhancer) {
   }
 
   /**
-   * Adds a change listener. It will be called any time an action is dispatched,
-   * and some part of the state tree may potentially have changed. You may then
-   * call `getState()` to read the current state tree inside the callback.
+   * 注册一个监听器（listener）。 他将会在执行调度（dispatch）行为（action）时执行；
+   * 此时状态树（state tree）可能已经发生了变更。你可以通过 `getState()` 方法来获获取当前状态输（state tree）。
    *
-   * You may call `dispatch()` from a change listener, with the following
-   * caveats:
+   * 您可以监听执行 `dispatch()`的变更，请注意以下事项:
    *
-   * 1. The subscriptions are snapshotted just before every `dispatch()` call.
-   * If you subscribe or unsubscribe while the listeners are being invoked, this
-   * will not have any effect on the `dispatch()` that is currently in progress.
-   * However, the next `dispatch()` call, whether nested or not, will use a more
-   * recent snapshot of the subscription list.
+   * 1、 每个监听器（listener）必须在执行`dispatch()`之前加入。
+   * 如果您在调用之前取消监听器，这对当前正在执行的`dispatch()`没有任何影响。
+   * 然而下次调用`dispatch()`，无论是否属于嵌套； 都将会使用最新的监听器队列；
+   * 具体原因可以看 dispatch 方法源码的倒数第 7 行； const listeners = (currentListeners = nextListeners)
    *
-   * 2. The listener should not expect to see all state changes, as the state
-   * might have been updated multiple times during a nested `dispatch()` before
-   * the listener is called. It is, however, guaranteed that all subscribers
-   * registered before the `dispatch()` started will be called with the latest
-   * state by the time it exits.
+   * 2、监听器（listener）不应该期望能监听到所有的状态（state）变更；
+   * 因为在调用监听器（listener）之前，执行多层嵌套Reduce的调度`dispatch()`方法是状态树（state）可能已经发生了多次改变。
+   * 但是，可以保证在执行调度`dispatch()`方法之前注册的监听器（listener）在调用是都可以获取到最新的状态树（state）
    *
-   * @param {Function} listener A callback to be invoked on every dispatch.
-   * @returns {Function} A function to remove this change listener.
+   * @param {Function} listener 一个在执行调度（dispatch）后的回调函数。
+   * @returns {Function} 一个删除监听器的（change listener）的函数。
    */
   function subscribe(listener) {
     if (typeof listener !== 'function') {
@@ -98,10 +96,9 @@ export default function createStore(reducer, preloadedState, enhancer) {
 
     if (isDispatching) {
       throw new Error(
-        '在执行 reducer 期间，不能添加监听器 ' +
-          'If you would like to be notified after the store has been updated, subscribe from a ' +
-          'component and invoke store.getState() in the callback to access the latest state. ' +
-          'See https://redux.js.org/api-reference/store#subscribe(listener) for more details.'
+        '正在执行 reducer 操作，暂不能添加监听器！' +
+          '如果您希望store更新后通知您， 可以在订阅（subscribe）组件回调中执行 store.getState()方法获取最新的状态树（state）。' +
+          '更多细节请参考：https://redux.js.org/api-reference/store#subscribe(listener)'
       )
     }
 
@@ -136,22 +133,19 @@ export default function createStore(reducer, preloadedState, enhancer) {
    * `reducer` 方法返回的值作为下一个状态（state）树；
    * 并循环listeners执行监听器通知
    *
-   * The base implementation only supports plain object actions. If you want to
-   * dispatch a Promise, an Observable, a thunk, or something else, you need to
-   * wrap your store creating function into the corresponding middleware. For
-   * example, see the documentation for the `redux-thunk` package. Even the
-   * middleware will eventually dispatch plain object actions using this method.
+   * 实现只支持纯 object 对象的 action。
+   * 如果您想实现一个Promise的异步调度（dispatch），一个Observable, 一个thunk, 或者something；
+   * 您可以在创建 store 时传入增强器（enhancer）中间件（middleware），如：`redux-thunk`。
+   * 甚至中间件（middleware）也会对调度（dispatch）的 action 普通对象进行操作（如检验action结构、type值，甚至改造action等）。
    *
-   * @param {Object} action A plain object representing “what changed”. It is
-   * a good idea to keep actions serializable so you can record and replay user
-   * sessions, or use the time travelling `redux-devtools`. An action must have
-   * a `type` property which may not be `undefined`. It is a good idea to use
-   * string constants for action types.
+   * @param {Object} action 一个普通的object对象，表示当前行为。
+   * 保持 action 可序列号，是一个好想法，这样您就可以记录和重放用户的回话；可以使用`redux-devtools工具`查看。
+   * 每个 action 必须有一个 `type` 属性，并且值不能是 `undefined`。
+   * 将 action 的 types 值设为字符串常量是一个很不错的做法。
    *
-   * @returns {Object} For convenience, the same action object you dispatched.
+   * @returns {Object} 为了方便实现compose多个中间件（middleware）执行调度（dispatch）时都能操作action
    *
-   * Note that, if you use a custom middleware, it may wrap `dispatch()` to
-   * return something else (for example, a Promise you can await).
+   * 请注意： 如果您使用中间件（middleware），它可能会封装一层调度（dispatch）来返回其他东西，(例如：返回Promise对象实现异步操作）。
    */
   function dispatch(action) {
     if (!isPlainObject(action)) {
@@ -178,7 +172,7 @@ export default function createStore(reducer, preloadedState, enhancer) {
       isDispatching = false
     }
 
-    const listeners = (currentListeners = nextListeners)
+    const listeners = (currentListeners = nextListeners); // 将下次监听队列赋给当前监听队列
     for (let i = 0; i < listeners.length; i++) {
       const listener = listeners[i]
       listener()
@@ -190,11 +184,9 @@ export default function createStore(reducer, preloadedState, enhancer) {
   /**
    * reducer替换器
    *
-   * You might need this if your app implements code splitting and you want to
-   * load some of the reducers dynamically. You might also need this if you
-   * implement a hot reloading mechanism for Redux.
+   * 如果你的应用程序实现了reducer拆分，并希望动态加载 reducer ；为您的Redux实现热加载 reducer 机制；则需要该方法实现
    *
-   * @param {Function} nextReducer The reducer for the store to use instead.
+   * @param {Function} nextReducer 该 reducer方法 将替换当前 store 的 currentReducer 方法！
    * @returns {void}
    */
   function replaceReducer(nextReducer) {
@@ -203,7 +195,7 @@ export default function createStore(reducer, preloadedState, enhancer) {
     }
 
     currentReducer = nextReducer
-    dispatch({ type: ActionTypes.REPLACE })
+    dispatch({ type: ActionTypes.REPLACE }); // 每次替换reducer函数都会执行一次替换的调度（dispatch）行为（action）
   }
 
   /**
